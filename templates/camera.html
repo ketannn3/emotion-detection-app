@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Live Emotion Detection</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0c14;
+      --glass: rgba(255,255,255,0.06);
+      --glass-border: rgba(255,255,255,0.10);
+      --accent: #00c6ff;
+      --accent2: #0072ff;
+      --text: #e8eaf0;
+      --text-dim: rgba(232,234,240,0.5);
+      --radius: 24px;
+    }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    /* Ambient orbs */
+    .orb {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(100px);
+      opacity: 0.15;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .orb-1 { width: 500px; height: 500px; top: -150px; left: -150px; background: #00c6ff; }
+    .orb-2 { width: 400px; height: 400px; bottom: -100px; right: -100px; background: #0072ff; }
+
+    /* Grain */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
+      opacity: 0.022;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .container {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+      padding: 24px;
+    }
+
+    /* Top label */
+    .top-label {
+      font-family: 'Syne', sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--accent);
+      opacity: 0.8;
+      margin-bottom: 20px;
+      animation: fadeDown 0.6s ease both;
+    }
+
+    /* Card */
+    .card {
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius);
+      backdrop-filter: blur(28px);
+      padding: 52px 56px;
+      text-align: center;
+      box-shadow: 0 8px 60px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06);
+      animation: fadeUp 0.7s 0.1s ease both;
+      max-width: 520px;
+      width: 100%;
+    }
+
+    /* Icon ring */
+    .icon-wrap {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, rgba(0,198,255,0.15), rgba(0,114,255,0.15));
+      border: 1px solid rgba(0,198,255,0.25);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 34px;
+      margin: 0 auto 28px;
+      box-shadow: 0 0 30px rgba(0,198,255,0.15);
+      animation: pulseRing 3s infinite;
+    }
+
+    h1 {
+      font-family: 'Syne', sans-serif;
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #fff 30%, var(--accent) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 12px;
+      line-height: 1.1;
+    }
+
+    p {
+      color: var(--text-dim);
+      font-size: 15px;
+      line-height: 1.6;
+      margin-bottom: 36px;
+      font-weight: 300;
+    }
+
+    /* Button */
+    .btn-start {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 15px 36px;
+      font-family: 'Syne', sans-serif;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      border: none;
+      border-radius: 50px;
+      cursor: pointer;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: #fff;
+      box-shadow: 0 4px 24px rgba(0,198,255,0.35);
+      transition: all 0.35s cubic-bezier(0.4,0,0.2,1);
+      overflow: hidden;
+    }
+    .btn-start::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, #fff2, transparent);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .btn-start:hover {
+      transform: translateY(-3px) scale(1.03);
+      box-shadow: 0 8px 36px rgba(0,198,255,0.5);
+    }
+    .btn-start:hover::before { opacity: 1; }
+    .btn-start:active { transform: scale(0.98); }
+    .btn-start.loading {
+      pointer-events: none;
+      opacity: 0.8;
+    }
+
+    .btn-icon { font-size: 18px; }
+
+    /* Spinner */
+    .spinner {
+      display: none;
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    .btn-start.loading .spinner { display: block; }
+    .btn-start.loading .btn-icon { display: none; }
+
+    /* Status */
+    .status {
+      margin-top: 24px;
+      min-height: 24px;
+      font-size: 13px;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      letter-spacing: 0.02em;
+    }
+    .status-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--accent);
+      display: none;
+      animation: pulseDot 1.2s infinite;
+    }
+    .status.active .status-dot { display: block; }
+
+    /* Feature pills */
+    .pills {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 32px;
+      padding-top: 28px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 50px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      font-size: 12px;
+      color: var(--text-dim);
+      font-weight: 400;
+    }
+    .pill span { font-size: 13px; }
+
+    /* Animations */
+    @keyframes fadeDown {
+      from { opacity: 0; transform: translateY(-16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes pulseRing {
+      0%, 100% { box-shadow: 0 0 30px rgba(0,198,255,0.15); }
+      50%       { box-shadow: 0 0 50px rgba(0,198,255,0.3); }
+    }
+    @keyframes pulseDot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.4; transform: scale(0.7); }
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+
+  <div class="container">
+    <div class="top-label">Real-Time Analysis</div>
+
+    <div class="card">
+      <div class="icon-wrap">📷</div>
+
+      <h1>Live Emotion Detection</h1>
+      <p>Start your camera to analyze facial emotions in real time using deep learning and explainable AI heatmaps.</p>
+
+      <button class="btn-start" id="startBtn" onclick="startCamera()">
+        <span class="btn-icon">▶</span>
+        <span class="btn-text">Start Camera</span>
+        <div class="spinner"></div>
+      </button>
+
+      <a href="/browser_camera" style="text-decoration:none;">
+        <button class="btn-start" style="background: linear-gradient(135deg,#4fffb0,#00c6ff); color:#0a0c14; margin-top:12px;">
+          <span class="btn-icon">📱</span>
+          <span class="btn-text">Use Browser Camera</span>
+        </button>
+      </a>
+      <p style="font-size:12px; color:rgba(232,234,240,0.4); margin-top:8px;">Works on phone &amp; remote devices</p>
+
+      <div class="status" id="statusText">
+        <div class="status-dot"></div>
+        <span id="statusMsg"></span>
+      </div>
+
+      <div class="pills">
+        <div class="pill"><span>🧠</span> CNN Model</div>
+        <div class="pill"><span>🔥</span> Live Heatmap</div>
+        <div class="pill"><span>😊</span> 7 Emotions</div>
+        <div class="pill"><span>📊</span> Confidence Score</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function startCamera() {
+      const btn = document.getElementById('startBtn');
+      const statusEl = document.getElementById('statusText');
+      const statusMsg = document.getElementById('statusMsg');
+
+      btn.classList.add('loading');
+      statusEl.classList.add('active');
+      statusMsg.textContent = 'Starting camera… please wait';
+
+      setTimeout(() => {
+        window.location.href = "/start_camera";
+      }, 1000);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI Emotion Detection</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0c14;
+      --glass: rgba(255,255,255,0.06);
+      --glass-border: rgba(255,255,255,0.10);
+      --accent-cam: #00c6ff;
+      --accent-cam2: #0072ff;
+      --accent-up: #ff7e5f;
+      --accent-up2: #e74c3c;
+      --text: #e8eaf0;
+      --text-dim: rgba(232,234,240,0.5);
+      --radius: 26px;
+    }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    /* Ambient orbs */
+    .orb {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(110px);
+      pointer-events: none;
+      z-index: 0;
+    }
+    .orb-1 { width: 580px; height: 580px; top: -200px; left: -180px; background: #00c6ff; opacity: 0.12; }
+    .orb-2 { width: 460px; height: 460px; bottom: -140px; right: -120px; background: #ff7e5f; opacity: 0.10; }
+    .orb-3 { width: 320px; height: 320px; top: 50%; left: 50%; transform: translate(-50%,-50%); background: #0072ff; opacity: 0.06; }
+
+    /* Grain */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
+      opacity: 0.022;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* Grid lines bg */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+      background-size: 60px 60px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .container {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px;
+      width: 100%;
+    }
+
+    /* Badge */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 18px;
+      border-radius: 50px;
+      background: rgba(0,198,255,0.08);
+      border: 1px solid rgba(0,198,255,0.2);
+      font-family: 'Syne', sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--accent-cam);
+      margin-bottom: 28px;
+      animation: fadeDown 0.6s ease both;
+    }
+    .badge-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--accent-cam);
+      animation: pulseDot 1.6s infinite;
+    }
+
+    /* Main card */
+    .card {
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius);
+      backdrop-filter: blur(28px);
+      padding: 56px 60px 52px;
+      text-align: center;
+      box-shadow: 0 8px 64px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.07);
+      max-width: 580px;
+      width: 100%;
+      animation: fadeUp 0.7s 0.1s ease both;
+    }
+
+    /* Robot icon */
+    .robot-wrap {
+      width: 88px; height: 88px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, rgba(0,198,255,0.12), rgba(0,114,255,0.12));
+      border: 1px solid rgba(0,198,255,0.22);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 38px;
+      margin: 0 auto 30px;
+      box-shadow: 0 0 40px rgba(0,198,255,0.12);
+      animation: float 4s ease-in-out infinite;
+    }
+
+    h1 {
+      font-family: 'Syne', sans-serif;
+      font-size: clamp(30px, 5vw, 44px);
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      line-height: 1.1;
+      background: linear-gradient(135deg, #ffffff 20%, #a8d8ff 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 14px;
+    }
+
+    .subtitle {
+      color: var(--text-dim);
+      font-size: 15px;
+      line-height: 1.65;
+      font-weight: 300;
+      max-width: 380px;
+      margin: 0 auto 40px;
+    }
+
+    /* Buttons row */
+    .btn-row {
+      display: flex;
+      gap: 14px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 15px 32px;
+      font-family: 'Syne', sans-serif;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      border: none;
+      border-radius: 50px;
+      cursor: pointer;
+      color: #fff;
+      text-decoration: none;
+      transition: all 0.35s cubic-bezier(0.4,0,0.2,1);
+      position: relative;
+      overflow: hidden;
+    }
+    .btn::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: rgba(255,255,255,0.12);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .btn:hover::before { opacity: 1; }
+    .btn:hover { transform: translateY(-3px) scale(1.04); }
+    .btn:active { transform: scale(0.97); }
+
+    .btn-camera {
+      background: linear-gradient(135deg, var(--accent-cam), var(--accent-cam2));
+      box-shadow: 0 4px 24px rgba(0,198,255,0.32);
+    }
+    .btn-camera:hover { box-shadow: 0 8px 36px rgba(0,198,255,0.52); }
+
+    .btn-upload {
+      background: linear-gradient(135deg, var(--accent-up), var(--accent-up2));
+      box-shadow: 0 4px 24px rgba(255,126,95,0.32);
+    }
+    .btn-upload:hover { box-shadow: 0 8px 36px rgba(255,126,95,0.52); }
+
+    .btn-emoji { font-size: 17px; }
+
+    /* Divider */
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin: 40px 0 28px;
+      opacity: 0.4;
+    }
+    .divider-line { flex: 1; height: 1px; background: rgba(255,255,255,0.15); }
+    .divider-text { font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-dim); }
+
+    /* Feature chips */
+    .features {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .feature {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 15px;
+      border-radius: 50px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      font-size: 12px;
+      color: var(--text-dim);
+      font-weight: 400;
+    }
+    .feature span { font-size: 13px; }
+
+    /* Animations */
+    @keyframes fadeDown {
+      from { opacity: 0; transform: translateY(-18px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(28px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50%       { transform: translateY(-8px); }
+    }
+    @keyframes pulseDot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.4; transform: scale(0.75); }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+
+  <div class="container">
+
+    <div class="badge">
+      <span class="badge-dot"></span>
+      Deep Learning · Explainable AI
+    </div>
+
+    <div class="card">
+
+      <div class="robot-wrap">🤖</div>
+
+      <h1>AI Emotion Detection</h1>
+      <p class="subtitle">Real-time emotion analysis using deep learning and explainable AI heatmaps. 7 emotions. Live webcam or image upload.</p>
+
+      <div class="btn-row">
+        <a href="/camera" class="btn btn-camera">
+          <span class="btn-emoji">📷</span> Start Live Detection
+        </a>
+        <a href="/upload" class="btn btn-upload">
+          <span class="btn-emoji">🖼</span> Upload Image
+        </a>
+      </div>
+
+      <div class="divider">
+        <div class="divider-line"></div>
+        <span class="divider-text">Powered by</span>
+        <div class="divider-line"></div>
+      </div>
+
+      <div class="features">
+        <div class="feature"><span>🧠</span> CNN Model</div>
+        <div class="feature"><span>🔥</span> Live Heatmap</div>
+        <div class="feature"><span>😊</span> 7 Emotions</div>
+        <div class="feature"><span>📊</span> Session Reports</div>
+        <div class="feature"><span>🎙</span> AI Assistant</div>
+      </div>
+
+    </div>
+  </div>
+
+</body>
+</html>

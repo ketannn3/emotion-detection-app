@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Browser Emotion Detection</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0a0c14;
+      --glass: rgba(255,255,255,0.06);
+      --glass-border: rgba(255,255,255,0.10);
+      --accent: #00c6ff;
+      --accent2: #0072ff;
+      --text: #e8eaf0;
+      --text-dim: rgba(232,234,240,0.5);
+      --radius: 20px;
+    }
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 24px 16px 48px;
+      overflow-x: hidden;
+    }
+    .orb { position: fixed; border-radius: 50%; filter: blur(100px); pointer-events: none; z-index: 0; }
+    .orb-1 { width: 500px; height: 500px; top: -150px; left: -150px; background: #00c6ff; opacity: 0.12; }
+    .orb-2 { width: 400px; height: 400px; bottom: -100px; right: -100px; background: #0072ff; opacity: 0.10; }
+    body::after { content: ''; position: fixed; inset: 0; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E"); opacity: 0.022; pointer-events: none; z-index: 1; }
+
+    .page { position: relative; z-index: 2; width: 100%; max-width: 680px; display: flex; flex-direction: column; align-items: center; gap: 20px; }
+
+    .header { text-align: center; margin-bottom: 4px; animation: fadeDown 0.6s ease both; }
+    .header-label { font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.25em; text-transform: uppercase; color: var(--accent); margin-bottom: 8px; opacity: 0.8; }
+    .header h1 { font-family: 'Syne', sans-serif; font-size: clamp(24px, 5vw, 36px); font-weight: 800; letter-spacing: -0.02em; background: linear-gradient(135deg, #fff 30%, var(--accent) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+
+    /* Video feed card */
+    .feed-card {
+      width: 100%;
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius);
+      backdrop-filter: blur(24px);
+      overflow: hidden;
+      position: relative;
+      box-shadow: 0 8px 48px rgba(0,0,0,0.4);
+      animation: fadeUp 0.7s 0.1s ease both;
+    }
+
+    .feed-inner { position: relative; width: 100%; }
+
+    video {
+      width: 100%;
+      display: block;
+      border-radius: var(--radius) var(--radius) 0 0;
+      background: #000;
+      transform: scaleX(-1); /* mirror for selfie feel */
+    }
+
+    canvas#overlay {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      transform: scaleX(-1);
+    }
+
+    /* Hidden canvases for processing */
+    canvas#capture { display: none; }
+
+    /* Emotion badge overlay */
+    .emotion-overlay {
+      position: absolute;
+      top: 14px; left: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: 50px;
+      background: rgba(10,12,20,0.75);
+      border: 1px solid var(--glass-border);
+      backdrop-filter: blur(12px);
+      font-family: 'Syne', sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--accent);
+      transition: all 0.3s;
+    }
+    .emotion-overlay .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: pulseDot 1.5s infinite; }
+
+    /* Confidence bar */
+    .conf-overlay {
+      position: absolute;
+      bottom: 14px; left: 14px; right: 14px;
+      background: rgba(10,12,20,0.75);
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+      padding: 10px 14px;
+      backdrop-filter: blur(12px);
+      display: none;
+    }
+    .conf-overlay.visible { display: block; }
+    .conf-label { font-size: 11px; color: var(--text-dim); margin-bottom: 6px; display: flex; justify-content: space-between; }
+    .conf-track { height: 4px; background: rgba(255,255,255,0.08); border-radius: 100px; overflow: hidden; }
+    .conf-fill { height: 100%; background: linear-gradient(90deg, var(--accent), #4fffb0); border-radius: 100px; transition: width 0.4s ease; }
+
+    /* Stats row */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      width: 100%;
+      animation: fadeUp 0.7s 0.2s ease both;
+    }
+    .stat-box {
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: 14px;
+      padding: 14px 12px;
+      text-align: center;
+      backdrop-filter: blur(16px);
+    }
+    .stat-val { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 800; color: var(--accent); line-height: 1; }
+    .stat-lbl { font-size: 10px; color: var(--text-dim); margin-top: 5px; text-transform: uppercase; letter-spacing: 0.05em; }
+
+    /* Controls */
+    .controls {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: center;
+      width: 100%;
+      animation: fadeUp 0.7s 0.3s ease both;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      padding: 14px 28px;
+      font-family: 'Syne', sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      border: none;
+      border-radius: 50px;
+      cursor: pointer;
+      color: #fff;
+      transition: all 0.35s cubic-bezier(0.4,0,0.2,1);
+    }
+    .btn:hover { transform: translateY(-2px); }
+    .btn:active { transform: scale(0.97); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+    .btn-start { background: linear-gradient(135deg, var(--accent), var(--accent2)); box-shadow: 0 4px 24px rgba(0,198,255,0.3); }
+    .btn-start:hover { box-shadow: 0 8px 32px rgba(0,198,255,0.5); }
+
+    .btn-stop { background: linear-gradient(135deg, #ff5c7a, #c0392b); box-shadow: 0 4px 24px rgba(255,92,122,0.3); }
+    .btn-stop:hover { box-shadow: 0 8px 32px rgba(255,92,122,0.5); }
+
+    .btn-finish { background: linear-gradient(135deg, #4fffb0, #00c6ff); box-shadow: 0 4px 24px rgba(79,255,176,0.3); color: #0a0c14; }
+    .btn-finish:hover { box-shadow: 0 8px 32px rgba(79,255,176,0.5); }
+    .btn-finish:disabled { color: #fff; }
+
+    /* Status chip */
+    .status-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 18px;
+      border-radius: 50px;
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      font-size: 13px;
+      color: var(--text-dim);
+      animation: fadeUp 0.7s 0.4s ease both;
+    }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-dim); }
+    .status-chip.live .status-dot { background: #4fffb0; animation: pulseDot 1s infinite; }
+    .status-chip.live { color: #4fffb0; border-color: rgba(79,255,176,0.3); }
+    .status-chip.stopped .status-dot { background: #ff5c7a; }
+    .status-chip.stopped { color: #ff5c7a; }
+
+    /* Permission error */
+    .error-box {
+      width: 100%;
+      background: rgba(255,92,122,0.08);
+      border: 1px solid rgba(255,92,122,0.25);
+      border-radius: 14px;
+      padding: 16px 20px;
+      font-size: 13px;
+      color: #ff5c7a;
+      display: none;
+      animation: fadeUp 0.4s ease both;
+    }
+    .error-box.visible { display: block; }
+
+    @keyframes fadeDown { from { opacity: 0; transform: translateY(-18px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes pulseDot { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.4; transform:scale(0.7); } }
+  </style>
+</head>
+<body>
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+
+  <div class="page">
+
+    <div class="header">
+      <div class="header-label">Browser-Based Detection</div>
+      <h1>Live Emotion Detection</h1>
+    </div>
+
+    <!-- Status -->
+    <div class="status-chip" id="statusChip">
+      <div class="status-dot"></div>
+      <span id="statusText">Camera not started</span>
+    </div>
+
+    <!-- Feed card -->
+    <div class="feed-card">
+      <div class="feed-inner">
+        <video id="video" autoplay playsinline muted></video>
+        <canvas id="overlay"></canvas>
+        <canvas id="capture"></canvas>
+
+        <div class="emotion-overlay" id="emotionOverlay">
+          <span class="dot"></span>
+          <span id="emotionText">--</span>
+        </div>
+
+        <div class="conf-overlay" id="confOverlay">
+          <div class="conf-label">
+            <span>Confidence</span>
+            <span id="confPct">0%</span>
+          </div>
+          <div class="conf-track">
+            <div class="conf-fill" id="confFill" style="width:0%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-row">
+      <div class="stat-box">
+        <div class="stat-val" id="statFrames">0</div>
+        <div class="stat-lbl">Frames</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val" id="statDominant">--</div>
+        <div class="stat-lbl">Dominant</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val" id="statDuration">0s</div>
+        <div class="stat-lbl">Duration</div>
+      </div>
+    </div>
+
+    <!-- Error box -->
+    <div class="error-box" id="errorBox"></div>
+
+    <!-- Controls -->
+    <div class="controls">
+      <button class="btn btn-start" id="btnStart" onclick="startCamera()">▶ Start Camera</button>
+      <button class="btn btn-stop"  id="btnStop"   onclick="stopCamera()" disabled>■ Stop</button>
+      <button class="btn btn-finish" id="btnFinish" onclick="finishSession()" disabled>✓ Finish &amp; Analyse</button>
+    </div>
+
+  </div>
+
+  <script>
+    let stream        = null;
+    let sendInterval  = null;
+    let timerInterval = null;
+    let isRunning     = false;
+    let frameCount    = 0;
+    let startTime     = null;
+    const emotionHistory = {};
+
+    const video    = document.getElementById('video');
+    const capture  = document.getElementById('capture');
+    const overlay  = document.getElementById('overlay');
+    const ctx      = overlay.getContext('2d');
+
+    // Sync overlay size to video
+    function syncCanvasSize() {
+      overlay.width  = video.videoWidth  || video.clientWidth;
+      overlay.height = video.videoHeight || video.clientHeight;
+      capture.width  = 320;
+      capture.height = 240;
+    }
+
+    async function startCamera() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+          audio: false
+        });
+        video.srcObject = stream;
+        await video.play();
+
+        syncCanvasSize();
+        video.addEventListener('resize', syncCanvasSize);
+
+        isRunning = true;
+        startTime = Date.now();
+        frameCount = 0;
+
+        document.getElementById('btnStart').disabled  = true;
+        document.getElementById('btnStop').disabled   = false;
+        document.getElementById('btnFinish').disabled = false;
+
+        const chip = document.getElementById('statusChip');
+        chip.className = 'status-chip live';
+        document.getElementById('statusText').textContent = 'Live — detecting emotions';
+
+        document.getElementById('errorBox').classList.remove('visible');
+
+        // Send frame every 350ms
+        sendInterval = setInterval(sendFrame, 350);
+
+        // Update duration every second
+        timerInterval = setInterval(() => {
+          const secs = Math.floor((Date.now() - startTime) / 1000);
+          document.getElementById('statDuration').textContent = secs + 's';
+        }, 1000);
+
+      } catch(err) {
+        showError('Camera access denied or not available. Please allow camera permission and try again. Error: ' + err.message);
+      }
+    }
+
+    function stopCamera() {
+      isRunning = false;
+      clearInterval(sendInterval);
+      clearInterval(timerInterval);
+
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+        stream = null;
+      }
+
+      document.getElementById('btnStart').disabled  = false;
+      document.getElementById('btnStop').disabled   = true;
+
+      const chip = document.getElementById('statusChip');
+      chip.className = 'status-chip stopped';
+      document.getElementById('statusText').textContent = 'Camera stopped';
+
+      ctx.clearRect(0, 0, overlay.width, overlay.height);
+    }
+
+    async function sendFrame() {
+      if (!isRunning || video.readyState < 2) return;
+
+      // Draw current video frame to capture canvas
+      const capCtx = capture.getContext('2d');
+      capCtx.drawImage(video, 0, 0, capture.width, capture.height);
+
+      // Get as JPEG blob
+      capture.toBlob(async (blob) => {
+        if (!blob) return;
+
+        const formData = new FormData();
+        formData.append('frame', blob, 'frame.jpg');
+
+        try {
+          const res  = await fetch('/process_frame', { method: 'POST', body: formData });
+          const data = await res.json();
+
+          if (data.error) return;
+
+          frameCount++;
+          document.getElementById('statFrames').textContent = frameCount;
+
+          // Update emotion display
+          const emotion    = data.emotion;
+          const confidence = data.confidence;
+
+          document.getElementById('emotionText').textContent = emotion + ' ' + getEmoji(emotion);
+          document.getElementById('confPct').textContent = confidence.toFixed(1) + '%';
+          document.getElementById('confFill').style.width = confidence + '%';
+          document.getElementById('confOverlay').classList.add('visible');
+
+          // Update dominant
+          emotionHistory[emotion] = (emotionHistory[emotion] || 0) + 1;
+          const dominant = Object.keys(emotionHistory).reduce((a,b) => emotionHistory[a] > emotionHistory[b] ? a : b);
+          document.getElementById('statDominant').textContent = dominant;
+
+          // Draw heatmap overlay if face detected
+          if (data.heatmap_img) {
+            const img = new Image();
+            img.onload = () => {
+              ctx.clearRect(0, 0, overlay.width, overlay.height);
+              // Draw heatmap over face region (scaled to overlay size)
+              const scaleX = overlay.width  / capture.width;
+              const scaleY = overlay.height / capture.height;
+              const fx = data.face_x * scaleX;
+              const fy = data.face_y * scaleY;
+              const fw = data.face_w * scaleX;
+              const fh = data.face_h * scaleY;
+              ctx.globalAlpha = 0.55;
+              ctx.drawImage(img, fx, fy, fw, fh);
+              ctx.globalAlpha = 1.0;
+              // Draw face rectangle
+              ctx.strokeStyle = '#00c6ff';
+              ctx.lineWidth = 2;
+              ctx.strokeRect(fx, fy, fw, fh);
+            };
+            img.src = 'data:image/png;base64,' + data.heatmap_img;
+          }
+
+        } catch(e) { /* network hiccup, skip frame */ }
+
+      }, 'image/jpeg', 0.7);
+    }
+
+    async function finishSession() {
+      stopCamera();
+
+      document.getElementById('btnFinish').disabled = true;
+      const chip = document.getElementById('statusChip');
+      chip.className = 'status-chip';
+      document.getElementById('statusText').textContent = 'Saving session...';
+
+      try {
+        const res  = await fetch('/finish_browser_session', { method: 'POST' });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          window.location.href = '/browser_assistant?emotion=' + encodeURIComponent(data.emotion);
+        } else {
+          showError('Could not save session. Please try again.');
+        }
+      } catch(e) {
+        showError('Network error saving session.');
+      }
+    }
+
+    function getEmoji(emotion) {
+      const map = { Happy:'😊', Surprise:'😲', Sad:'😢', Fear:'😨', Angry:'😠', Neutral:'😐', Disgust:'😒' };
+      return map[emotion] || '';
+    }
+
+    function showError(msg) {
+      const box = document.getElementById('errorBox');
+      box.textContent = msg;
+      box.classList.add('visible');
+    }
+  </script>
+</body>
+</html>
