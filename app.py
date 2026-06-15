@@ -320,19 +320,4 @@ def download_report():
 # ---------------- RUN ----------------
 
 if __name__ == "__main__":
-    from pyngrok import ngrok
-    import logging
-    logging.getLogger("pyngrok").setLevel(logging.ERROR)
-
-    public_url = ngrok.connect(5000)
-
-    print("\n" + "="*55)
-    print("  AI Emotion Detection -- LIVE")
-    print("="*55)
-    print("  Public URL : " + str(public_url))
-    print("  Local URL  : http://127.0.0.1:5000")
-    print("  Share the Public URL with anyone.")
-    print("  Keep this terminal open while sharing.")
-    print("="*55 + "\n")
-
-    app.run(debug=False)
+    app.run(host="0.0.0.0", port=5000, debug=False)
