@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Session Result</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0c14;
+      --glass: rgba(255,255,255,0.05);
+      --glass-border: rgba(255,255,255,0.09);
+      --accent: #00c6ff;
+      --accent2: #0072ff;
+      --text: #e8eaf0;
+      --text-dim: rgba(232,234,240,0.5);
+      --radius: 22px;
+    }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* Ambient orbs */
+    .orb {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(100px);
+      opacity: 0.13;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .orb-1 { width: 560px; height: 560px; top: -180px; left: -160px; background: #00c6ff; }
+    .orb-2 { width: 420px; height: 420px; bottom: -120px; right: -100px; background: #0072ff; }
+    .orb-3 { width: 300px; height: 300px; top: 45%; left: 55%; background: #4fffb0; opacity: 0.06; }
+
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
+      opacity: 0.022;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* Page wrapper */
+    .page {
+      position: relative;
+      z-index: 2;
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 48px 24px 72px;
+    }
+
+    /* Page header */
+    .page-header {
+      text-align: center;
+      margin-bottom: 48px;
+      animation: fadeDown 0.7s ease both;
+    }
+    .page-header .label {
+      font-family: 'Syne', sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--accent);
+      opacity: 0.8;
+      margin-bottom: 12px;
+    }
+    .page-header h1 {
+      font-family: 'Syne', sans-serif;
+      font-size: clamp(28px, 5vw, 42px);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #fff 30%, var(--accent) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      line-height: 1.1;
+    }
+    .page-header p {
+      color: var(--text-dim);
+      font-size: 15px;
+      margin-top: 10px;
+      font-weight: 300;
+    }
+
+    /* Cards */
+    .card {
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius);
+      backdrop-filter: blur(24px);
+      padding: 36px 40px;
+      margin-bottom: 24px;
+      box-shadow: 0 8px 48px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05);
+      animation: fadeUp 0.6s ease both;
+    }
+    .card:nth-child(1) { animation-delay: 0.1s; }
+    .card:nth-child(2) { animation-delay: 0.2s; }
+    .card:nth-child(3) { animation-delay: 0.3s; }
+    .card:nth-child(4) { animation-delay: 0.4s; }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+    .card-icon {
+      width: 40px; height: 40px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, rgba(0,198,255,0.15), rgba(0,114,255,0.15));
+      border: 1px solid rgba(0,198,255,0.2);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+    .card-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.01em;
+    }
+
+    /* Chart containers */
+    .chart-wrap {
+      position: relative;
+      max-width: 420px;
+      margin: 0 auto;
+    }
+    .chart-wrap-full {
+      position: relative;
+      width: 100%;
+    }
+
+    /* Analysis text */
+    .analysis-text {
+      font-size: 15px;
+      line-height: 1.85;
+      color: var(--text);
+      font-weight: 300;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 14px;
+      padding: 20px 24px;
+    }
+
+    /* Download button */
+    .btn-download {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 15px 36px;
+      font-family: 'Syne', sans-serif;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      border: none;
+      border-radius: 50px;
+      cursor: pointer;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: #fff;
+      box-shadow: 0 4px 24px rgba(0,198,255,0.3);
+      transition: all 0.35s cubic-bezier(0.4,0,0.2,1);
+      text-decoration: none;
+    }
+    .btn-download:hover {
+      transform: translateY(-3px) scale(1.03);
+      box-shadow: 0 8px 36px rgba(0,198,255,0.5);
+    }
+    .btn-download:active { transform: scale(0.98); }
+
+    .download-sub {
+      margin-top: 14px;
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+
+    /* Stats row */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+    .stat-box {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 14px;
+      padding: 18px 16px;
+      text-align: center;
+    }
+    .stat-val {
+      font-family: 'Syne', sans-serif;
+      font-size: 24px;
+      font-weight: 800;
+      color: var(--accent);
+      line-height: 1;
+    }
+    .stat-lbl {
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-top: 6px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    /* Animations */
+    @keyframes fadeDown {
+      from { opacity: 0; transform: translateY(-20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(28px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+
+  <div class="page">
+
+    <!-- Header -->
+    <div class="page-header">
+      <div class="label">Session Complete</div>
+      <h1>Session Analysis Dashboard</h1>
+      <p>Deep learning emotion analysis — your session results</p>
+    </div>
+
+    <!-- Stats row (computed from data) -->
+    <div class="stats-row" id="statsRow">
+      <div class="stat-box">
+        <div class="stat-val" id="statDominant">—</div>
+        <div class="stat-lbl">Dominant Emotion</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val" id="statFrames">—</div>
+        <div class="stat-lbl">Frames Analysed</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val" id="statUnique">—</div>
+        <div class="stat-lbl">Emotions Detected</div>
+      </div>
+    </div>
+
+    <!-- Pie Chart -->
+    <div class="card" id="pieCard">
+      <div class="card-header">
+        <div class="card-icon">🥧</div>
+        <span class="card-title">Emotion Distribution</span>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="emotionChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Timeline Chart -->
+    <div class="card" id="timelineCard">
+      <div class="card-header">
+        <div class="card-icon">📈</div>
+        <span class="card-title">Emotion Timeline</span>
+      </div>
+      <div class="chart-wrap-full">
+        <canvas id="timelineChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Analysis -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon">🧠</div>
+        <span class="card-title">Behaviour Analysis</span>
+      </div>
+      <div class="analysis-text">{{ data.analysis }}</div>
+    </div>
+
+    <!-- Download -->
+    <div class="card" style="text-align:center; padding: 40px;">
+      <div class="card-header" style="justify-content:center; margin-bottom:20px;">
+        <div class="card-icon">📄</div>
+        <span class="card-title">Download Report</span>
+      </div>
+      <a href="/download_report" class="btn-download">
+        ⬇ &nbsp;Download Emotion Report
+      </a>
+      <div class="download-sub">PDF report · Includes charts, analysis &amp; timeline</div>
+    </div>
+
+  </div>
+
+  <script>
+    const data = {{ data | tojson | safe }};
+
+    const EMOTION_COLORS = {
+      Angry:   "#ff5c7a",
+      Disgust: "#a78bfa",
+      Fear:    "#fb923c",
+      Happy:   "#4fffb0",
+      Sad:     "#60a5fa",
+      Surprise:"#fbbf24",
+      Neutral: "#94a3b8"
+    };
+
+    const distribution = data.distribution || {};
+    const labels = Object.keys(distribution);
+    const values = Object.values(distribution);
+
+    // ── Stats row ──────────────────────────────────────────────────
+    if (labels.length > 0) {
+      const dominant = labels.reduce((a, b) => distribution[a] > distribution[b] ? a : b);
+      const totalFrames = values.reduce((s, v) => s + v, 0);
+      document.getElementById('statDominant').textContent = dominant;
+      document.getElementById('statFrames').textContent = totalFrames.toLocaleString();
+      document.getElementById('statUnique').textContent = labels.length;
+    }
+
+    // ── Pie chart ──────────────────────────────────────────────────
+    if (labels.length > 0) {
+      const bgColors = labels.map(l => EMOTION_COLORS[l] || "#999");
+      new Chart(document.getElementById("emotionChart"), {
+        type: "doughnut",
+        data: {
+          labels,
+          datasets: [{
+            data: values,
+            backgroundColor: bgColors,
+            borderColor: "rgba(10,12,20,0.6)",
+            borderWidth: 3,
+            hoverOffset: 10
+          }]
+        },
+        options: {
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                color: "rgba(232,234,240,0.75)",
+                font: { family: "'DM Sans', sans-serif", size: 13 },
+                padding: 18,
+                usePointStyle: true,
+                pointStyleWidth: 10
+              }
+            }
+          },
+          cutout: '58%'
+        }
+      });
+    }
+
+    // ── Timeline chart ─────────────────────────────────────────────
+    const timeline = data.timeline || [];
+
+    if (timeline.length === 0) {
+      document.getElementById("timelineCard").style.display = "none";
+    } else {
+      const emotionMap   = { Angry:0, Disgust:1, Fear:2, Happy:3, Sad:4, Surprise:5, Neutral:6 };
+      const emotionNames = ["Angry","Disgust","Fear","Happy","Sad","Surprise","Neutral"];
+
+      const xValues = timeline.map((_, i) => i);
+      const yValues = timeline.map(t => emotionMap[t.emotion]);
+
+      new Chart(document.getElementById("timelineChart"), {
+        type: "line",
+        data: {
+          labels: xValues,
+          datasets: [{
+            label: "Emotion Timeline",
+            data: yValues,
+            borderColor: "#00c6ff",
+            backgroundColor: "rgba(0,198,255,0.08)",
+            fill: true,
+            tension: 0.4,
+            pointRadius: 3,
+            pointBackgroundColor: "#00c6ff",
+            pointBorderColor: "rgba(10,12,20,0.8)",
+            pointBorderWidth: 1.5
+          }]
+        },
+        options: {
+          scales: {
+            x: {
+              ticks: { color: "rgba(232,234,240,0.4)", maxTicksLimit: 12, font: { size: 11 } },
+              grid:  { color: "rgba(255,255,255,0.04)" }
+            },
+            y: {
+              min: 0, max: 6,
+              ticks: {
+                color: "rgba(232,234,240,0.6)",
+                font: { family: "'DM Sans', sans-serif", size: 12 },
+                callback: v => emotionNames[v] || ''
+              },
+              grid: { color: "rgba(255,255,255,0.05)" }
+            }
+          },
+          plugins: {
+            legend: {
+              labels: {
+                color: "rgba(232,234,240,0.6)",
+                font: { family: "'DM Sans', sans-serif", size: 12 },
+                usePointStyle: true
+              }
+            }
+          }
+        }
+      });
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Emotional Assistant</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg: #0a0c14;
+      --surface: rgba(255,255,255,0.04);
+      --glass: rgba(255,255,255,0.07);
+      --glass-border: rgba(255,255,255,0.10);
+      --accent-pos: #4fffb0;
+      --accent-neg: #ff5c7a;
+      --accent-neu: #a78bfa;
+      --accent: #4fffb0;
+      --text: #e8eaf0;
+      --text-dim: rgba(232,234,240,0.5);
+      --radius: 20px;
+      --transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .orb { position: fixed; border-radius: 50%; filter: blur(90px); opacity: 0.18; pointer-events: none; z-index: 0; transition: background 2s ease; }
+    .orb-1 { width: 520px; height: 520px; top: -120px; left: -120px; background: var(--accent); }
+    .orb-2 { width: 400px; height: 400px; bottom: -100px; right: -80px; background: var(--accent-neu); }
+    .orb-3 { width: 280px; height: 280px; top: 40%; left: 50%; transform: translateX(-50%); background: var(--accent); opacity: 0.08; }
+    body::after { content: ''; position: fixed; inset: 0; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E"); opacity: 0.022; pointer-events: none; z-index: 1; }
+    .page-wrapper { position: relative; z-index: 2; width: 100%; max-width: 760px; padding: 32px 24px 48px; display: flex; flex-direction: column; align-items: center; gap: 28px; }
+    .header { text-align: center; animation: fadeSlideDown 0.7s ease both; }
+    .header-label { font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.25em; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; opacity: 0.85; }
+    .header h1 { font-family: 'Syne', sans-serif; font-size: clamp(28px, 5vw, 42px); font-weight: 800; line-height: 1.1; letter-spacing: -0.02em; background: linear-gradient(135deg, #fff 30%, var(--accent) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .emotion-badge { display: inline-flex; align-items: center; gap: 10px; padding: 10px 22px; border-radius: 50px; background: var(--glass); border: 1px solid var(--glass-border); backdrop-filter: blur(16px); font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px; letter-spacing: 0.04em; color: var(--accent); animation: fadeSlideDown 0.8s 0.1s ease both; box-shadow: 0 0 30px rgba(79,255,176,0.08); }
+    .emotion-badge .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); animation: pulse 1.8s infinite; }
+    .card { width: 100%; background: var(--glass); border: 1px solid var(--glass-border); border-radius: var(--radius); backdrop-filter: blur(24px); padding: 36px 40px; animation: fadeSlideUp 0.7s 0.2s ease both; box-shadow: 0 8px 60px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.06); }
+    .progress-container { margin-bottom: 28px; }
+    .progress-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .progress-label { font-size: 12px; font-weight: 500; color: var(--text-dim); letter-spacing: 0.05em; text-transform: uppercase; }
+    .progress-count { font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; color: var(--accent); }
+    .progress-track { width: 100%; height: 4px; background: rgba(255,255,255,0.07); border-radius: 100px; overflow: hidden; }
+    .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), #00e5ff); border-radius: 100px; transition: width 0.6s cubic-bezier(0.4,0,0.2,1); box-shadow: 0 0 12px rgba(79,255,176,0.4); }
+    .ai-bubble { display: flex; gap: 16px; align-items: flex-start; margin-bottom: 28px; }
+    .ai-avatar { width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg, var(--accent) 0%, #00c9ff 100%); display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; box-shadow: 0 0 20px rgba(79,255,176,0.25); position: relative; }
+    .ai-avatar::after { content: ''; position: absolute; inset: -3px; border-radius: 50%; border: 2px solid var(--accent); opacity: 0; animation: speakRing 1.4s infinite; }
+    .ai-avatar.speaking::after { opacity: 1; }
+    .ai-text-box { flex: 1; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 0 16px 16px 16px; padding: 18px 22px; font-size: 15.5px; line-height: 1.7; color: var(--text); min-height: 72px; position: relative; transition: border-color 0.3s; }
+    .ai-text-box.speaking { border-color: rgba(79,255,176,0.3); box-shadow: 0 0 20px rgba(79,255,176,0.06); }
+    .typing-dots { display: none; gap: 5px; align-items: center; padding: 6px 0; }
+    .typing-dots.active { display: flex; }
+    .typing-dots span { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: typingBounce 1.2s infinite; }
+    .typing-dots span:nth-child(2) { animation-delay: 0.15s; }
+    .typing-dots span:nth-child(3) { animation-delay: 0.3s; }
+    .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+    @media (max-width: 500px) { .options-grid { grid-template-columns: 1fr; } }
+    .option-btn { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.10); border-radius: 14px; padding: 14px 18px; color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 400; cursor: pointer; transition: all var(--transition); text-align: left; line-height: 1.4; position: relative; overflow: hidden; }
+    .option-btn::before { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, var(--accent), transparent); opacity: 0; transition: opacity 0.3s; }
+    .option-btn:hover { border-color: var(--accent); background: rgba(79,255,176,0.07); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.2); color: #fff; }
+    .option-btn:hover::before { opacity: 0.04; }
+    .option-btn.selected { border-color: var(--accent); background: rgba(79,255,176,0.12); color: var(--accent); font-weight: 500; }
+    .option-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .option-key { display: inline-block; font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700; color: var(--accent); background: rgba(79,255,176,0.12); border-radius: 5px; padding: 2px 7px; margin-right: 8px; letter-spacing: 0.04em; }
+    .action-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .btn-voice { display: flex; align-items: center; gap: 9px; padding: 12px 22px; border-radius: 50px; background: var(--glass); border: 1px solid var(--glass-border); color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; transition: all var(--transition); backdrop-filter: blur(12px); }
+    .btn-voice:hover { border-color: var(--accent); color: var(--accent); background: rgba(79,255,176,0.06); }
+    .btn-voice.listening { border-color: #ff5c7a; color: #ff5c7a; background: rgba(255,92,122,0.08); animation: voicePulse 1.2s infinite; }
+    .btn-voice .mic-icon { font-size: 18px; }
+    .voice-hint { font-size: 12px; color: var(--text-dim); margin-left: 4px; }
+    .transcript-chip { width: 100%; margin-top: 10px; padding: 10px 16px; background: rgba(255,255,255,0.03); border: 1px dashed rgba(255,255,255,0.12); border-radius: 10px; font-size: 13px; color: var(--text-dim); min-height: 40px; display: none; align-items: center; gap: 8px; }
+    .transcript-chip.active { display: flex; }
+    .transcript-chip .dot-mic { width: 8px; height: 8px; border-radius: 50%; background: #ff5c7a; flex-shrink: 0; animation: pulse 1s infinite; }
+    .summary-card { width: 100%; background: var(--glass); border: 1px solid var(--glass-border); border-radius: var(--radius); backdrop-filter: blur(24px); padding: 36px 40px; display: none; animation: fadeSlideUp 0.6s ease both; box-shadow: 0 8px 60px rgba(0,0,0,0.35); }
+    .summary-card.visible { display: block; }
+    .summary-title { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 700; color: var(--accent); margin-bottom: 6px; }
+    .summary-subtitle { font-size: 13px; color: var(--text-dim); margin-bottom: 24px; }
+    .summary-body { font-size: 15px; line-height: 1.9; color: var(--text); white-space: pre-line; }
+    .summary-redirect { margin-top: 28px; font-size: 13px; color: var(--text-dim); display: flex; align-items: center; gap: 8px; }
+    .redirect-bar { flex: 1; height: 3px; background: rgba(255,255,255,0.08); border-radius: 100px; overflow: hidden; }
+    .redirect-fill { height: 100%; background: var(--accent); border-radius: 100px; width: 0%; transition: width 0.1s linear; }
+    .btn-skip { background: none; border: none; color: var(--text-dim); font-family: 'DM Sans', sans-serif; font-size: 13px; cursor: pointer; margin-left: auto; padding: 6px 10px; border-radius: 8px; transition: color 0.2s; }
+    .btn-skip:hover { color: var(--text); }
+    .card-content { transition: opacity 0.3s ease; }
+    .card-content.fading { opacity: 0; }
+    @keyframes fadeSlideDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes fadeSlideUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(0.85); } }
+    @keyframes typingBounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+    @keyframes speakRing { 0% { transform: scale(1); opacity: 0.6; } 100% { transform: scale(1.55); opacity: 0; } }
+    @keyframes voicePulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(255,92,122,0.3); } 50% { box-shadow: 0 0 0 8px rgba(255,92,122,0); } }
+  </style>
+</head>
+<body>
+  <div class="orb orb-1" id="orb1"></div>
+  <div class="orb orb-2" id="orb2"></div>
+  <div class="orb orb-3"></div>
+
+  <div class="page-wrapper">
+    <div class="header">
+      <div class="header-label">Emotional Intelligence System</div>
+      <h1>Your Emotional Assistant</h1>
+    </div>
+
+    <div class="emotion-badge">
+      <span class="dot"></span>
+      Detected: <strong id="emotionLabel">{{ emotion }}</strong>
+    </div>
+
+    <div class="card" id="mainCard">
+      <div class="card-content" id="cardContent">
+        <div class="progress-container">
+          <div class="progress-meta">
+            <span class="progress-label">Session Progress</span>
+            <span class="progress-count" id="progressCount">0 / 8</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill" id="progressFill" style="width:0%"></div>
+          </div>
+        </div>
+
+        <div class="ai-bubble">
+          <div class="ai-avatar" id="aiAvatar">🧠</div>
+          <div class="ai-text-box" id="aiTextBox">
+            <div class="typing-dots active" id="typingDots"><span></span><span></span><span></span></div>
+            <div id="aiMessage" style="display:none;"></div>
+          </div>
+        </div>
+
+        <div class="options-grid" id="optionsGrid"></div>
+
+        <div class="action-row">
+          <button class="btn-voice" id="voiceBtn" onclick="toggleVoice()">
+            <span class="mic-icon">🎤</span> Speak Answer
+          </button>
+          <span class="voice-hint" id="voiceHint">or click an option above</span>
+          <button class="btn-skip" onclick="skipQuestion()">Skip →</button>
+        </div>
+
+        <div class="transcript-chip" id="transcriptChip">
+          <span class="dot-mic"></span>
+          <span id="transcriptText">Listening...</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="summary-card" id="summaryCard">
+      <div class="summary-title">🌱 Your Emotional Summary</div>
+      <div class="summary-subtitle">Based on your responses — from your AI therapist</div>
+      <div class="summary-body" id="summaryBody"></div>
+      <div class="summary-redirect">
+        <span>Redirecting to results</span>
+        <div class="redirect-bar"><div class="redirect-fill" id="redirectFill"></div></div>
+        <span id="redirectCountdown">5s</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const RAW_EMOTION = "{{ emotion }}";
+    const emotion = RAW_EMOTION.trim();
+
+    const POSITIVE_EMOTIONS = ["Happy", "Surprise"];
+    const NEGATIVE_EMOTIONS = ["Sad", "Fear", "Angry"];
+
+    let emotionPath = "neutral";
+    if (POSITIVE_EMOTIONS.includes(emotion)) emotionPath = "positive";
+    else if (NEGATIVE_EMOTIONS.includes(emotion)) emotionPath = "negative";
+
+    const pathColors = { positive: "#4fffb0", negative: "#ff5c7a", neutral: "#a78bfa" };
+    const accent = pathColors[emotionPath];
+    document.documentElement.style.setProperty('--accent', accent);
+    document.getElementById('orb1').style.background = accent;
+
+    const questions = [
+      {
+        text: {
+          positive: "You seem to be in a great space right now! How long have you been feeling this way?",
+          negative: "It looks like you might be going through something difficult. How long have you been feeling this way?",
+          neutral:  "You appear calm and composed. How long have you been in this current state of mind?"
+        },
+        options: {
+          positive: ["Just started today", "For a few days now", "Most of this week", "Quite a while, actually"],
+          negative: ["Just today", "A few days", "Most of this week", "It's been a while"],
+          neutral:  ["Just today", "A few days", "Most of this week", "For a long time"]
+        }
+      },
+      {
+        text: {
+          positive: "That's wonderful! What do you think is the biggest source of your positive energy right now?",
+          negative: "I understand. What do you feel is most affecting your emotional state?",
+          neutral:  "Interesting. What has been occupying your mind the most lately?"
+        },
+        options: {
+          positive: ["Personal achievements", "People around me", "Health & lifestyle", "Something exciting ahead"],
+          negative: ["Work or studies", "Personal relationships", "Health concerns", "Uncertain future"],
+          neutral:  ["Work or studies", "Personal goals", "Daily routine", "Thinking about the future"]
+        }
+      },
+      {
+        text: {
+          positive: "Brilliant! How well have you been taking care of yourself physically — sleep, food, movement?",
+          negative: "That makes sense. How has your physical wellbeing been — sleep, appetite, energy levels?",
+          neutral:  "Good to know. How has your physical wellbeing been recently — sleep, appetite, energy?"
+        },
+        options: {
+          positive: ["Excellent — feeling great", "Pretty good, minor things", "Could be better", "Struggling a bit"],
+          negative: ["Sleeping & eating poorly", "Sleep is disrupted", "Appetite is off", "Physically okay, emotionally not"],
+          neutral:  ["All good", "Sleep could be better", "Energy feels low", "Overall balanced"]
+        }
+      },
+      {
+        text: {
+          positive: "Amazing! Who in your life have you been able to share this joy with?",
+          negative: "Thank you for sharing. Do you have someone you trust to talk to about how you feel?",
+          neutral:  "Understood. How connected do you feel to the people around you right now?"
+        },
+        options: {
+          positive: ["Close friends", "Family", "Partner or significant other", "Mostly keeping it to myself"],
+          negative: ["Yes — friends or family", "Partially — a few people", "Not really", "I prefer to handle it alone"],
+          neutral:  ["Very connected", "Somewhat connected", "A little distant", "Prefer solitude"]
+        }
+      },
+      {
+        text: {
+          positive: "Lovely! Have you done anything creative or meaningful recently that fuelled this feeling?",
+          negative: "Noted. Have you been doing any activities that usually help you feel better or more grounded?",
+          neutral:  "Understood. What activities have you been engaging in to maintain your mental balance?"
+        },
+        options: {
+          positive: ["Yes — creative work", "Exercise or sports", "Travel or exploration", "Spending quality time"],
+          negative: ["Yes — they help", "Trying to, but it's hard", "Not really", "I've stopped doing them"],
+          neutral:  ["Reading or learning", "Exercise", "Meditation or journaling", "Just daily routine"]
+        }
+      },
+      {
+        text: {
+          positive: "That's great! On a scale of feeling, how productive and motivated have you felt recently?",
+          negative: "I see. How has your motivation and ability to focus been affected by your current feelings?",
+          neutral:  "I see. How would you describe your level of motivation and focus lately?"
+        },
+        options: {
+          positive: ["Highly motivated", "Fairly motivated", "Moderate", "Lower than usual despite feeling okay"],
+          negative: ["Very low — struggling", "Hard to focus", "Managing but it's tough", "Motivation is okay, mood isn't"],
+          neutral:  ["Steady and focused", "Moderate", "A little unmotivated", "Going through the motions"]
+        }
+      },
+      {
+        text: {
+          positive: "Wonderful! Are there any goals or plans you've been working toward that excite you?",
+          negative: "Understood. Are there any specific thoughts or worries that keep coming back to you?",
+          neutral:  "Good. Are there any specific things you are working toward or looking forward to?"
+        },
+        options: {
+          positive: ["Yes — very exciting goals", "A few small plans", "Keeping it open-ended", "Taking things day by day"],
+          negative: ["Yes — they're overwhelming", "A few recurring worries", "Not many specific thoughts", "Just a general heaviness"],
+          neutral:  ["Clear goals in progress", "A few things", "Nothing specific", "Just taking it day by day"]
+        }
+      },
+      {
+        text: {
+          positive: "Finally — what kind of support or acknowledgment feels most meaningful to you right now?",
+          negative: "Last question — what kind of support would feel most helpful to you right now?",
+          neutral:  "Last one — what kind of support or direction would be most helpful to you right now?"
+        },
+        options: {
+          positive: ["Words of encouragement", "Someone to celebrate with", "Space to keep growing", "No support needed — I'm great!"],
+          negative: ["Someone to talk to", "Practical coping strategies", "Just being heard", "Professional guidance"],
+          neutral:  ["Clarity and direction", "Motivation boost", "Gentle accountability", "Just some perspective"]
+        }
+      }
+    ];
+
+    let currentQ = -1;
+    const answers = [];
+    let isSpeaking = false;
+    let recognition = null;
+    let isListening = false;
+    let summaryTextGlobal = "";
+
+    const emotionEmoji = { Happy:"😊", Surprise:"😲", Sad:"😢", Fear:"😨", Angry:"😠", Neutral:"😐", Disgust:"😒" };
+    document.getElementById('aiAvatar').textContent = emotionEmoji[emotion] || "🧠";
+
+    const introTexts = {
+      positive: `Hello! I can see you're feeling ${emotion} right now — that's really wonderful. 😊 I'm your emotional assistant, and I'd love to understand you better. We'll go through 8 short questions together. Take your time, and answer honestly. Let's begin!`,
+      negative: `Hi there. I can see you're feeling ${emotion} right now. I want you to know that's completely okay — your feelings are valid. 💙 I'm here as your emotional companion. We'll talk through 8 gentle questions. There are no right or wrong answers. Let's take it one step at a time.`,
+      neutral:  `Hello! You seem to be in a ${emotion} state right now — calm and grounded. 🌿 I'm your emotional assistant. We'll explore your mindset through 8 short questions to understand you better. Take your time and be as honest as you like. Let's begin.`
+    };
+
+    function speak(text, onEnd) {
+      window.speechSynthesis.cancel();
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.rate = 0.96; utter.pitch = 1.05; utter.volume = 1;
+      const voices = window.speechSynthesis.getVoices();
+      const preferred = voices.find(v => v.name.includes("Google") || v.name.includes("Samantha") || v.name.includes("Karen") || v.lang.startsWith("en"));
+      if (preferred) utter.voice = preferred;
+      document.getElementById('aiAvatar').classList.add('speaking');
+      document.getElementById('aiTextBox').classList.add('speaking');
+      isSpeaking = true;
+      utter.onend = () => {
+        document.getElementById('aiAvatar').classList.remove('speaking');
+        document.getElementById('aiTextBox').classList.remove('speaking');
+        isSpeaking = false;
+        if (onEnd) onEnd();
+      };
+      window.speechSynthesis.speak(utter);
+    }
+
+    function showTyping(duration, cb) {
+      document.getElementById('typingDots').classList.add('active');
+      document.getElementById('aiMessage').style.display = 'none';
+      setTimeout(cb, duration);
+    }
+
+    function showMessage(text, onSpeakEnd) {
+      const el = document.getElementById('aiMessage');
+      document.getElementById('typingDots').classList.remove('active');
+      el.style.display = 'block';
+      el.textContent = text;
+      speak(text, onSpeakEnd);
+    }
+
+    window.speechSynthesis.onvoiceschanged = () => {};
+    window.addEventListener('load', () => { setTimeout(() => startIntro(), 600); });
+
+    function startIntro() {
+      showTyping(1200, () => {
+        showMessage(introTexts[emotionPath], () => { setTimeout(() => advanceQuestion(), 800); });
+      });
+    }
+
+    function advanceQuestion() {
+      currentQ++;
+      if (currentQ >= questions.length) { showSummary(); return; }
+      updateProgress();
+      fadeAndLoad(() => loadQuestion(currentQ));
+    }
+
+    function fadeAndLoad(cb) {
+      const cc = document.getElementById('cardContent');
+      cc.classList.add('fading');
+      setTimeout(() => { cb(); cc.classList.remove('fading'); }, 300);
+    }
+
+    function updateProgress() {
+      const pct = Math.round((currentQ / questions.length) * 100);
+      document.getElementById('progressFill').style.width = pct + '%';
+      document.getElementById('progressCount').textContent = currentQ + ' / ' + questions.length;
+    }
+
+    function loadQuestion(idx) {
+      const q = questions[idx];
+      const qText = q.text[emotionPath];
+      const opts  = q.options[emotionPath];
+      const grid  = document.getElementById('optionsGrid');
+      grid.innerHTML = '';
+      showTyping(900, () => {
+        showMessage(qText, null);
+        opts.forEach((opt, i) => {
+          const btn = document.createElement('button');
+          btn.className = 'option-btn';
+          btn.innerHTML = `<span class="option-key">${String.fromCharCode(65+i)}</span>${opt}`;
+          btn.addEventListener('click', () => selectAnswer(opt, btn, qText));
+          grid.appendChild(btn);
+        });
+      });
+    }
+
+    function selectAnswer(answer, btn, questionText) {
+      document.querySelectorAll('.option-btn').forEach(b => { b.classList.remove('selected'); b.disabled = true; });
+      btn.classList.add('selected');
+      answers.push({ q: currentQ + 1, question: questionText, answer: answer });
+      setTimeout(() => advanceQuestion(), 700);
+    }
+
+    function skipQuestion() {
+      const qText = currentQ >= 0 ? questions[currentQ].text[emotionPath] : `Question ${currentQ + 1}`;
+      answers.push({ q: currentQ + 1, question: qText, answer: "Skipped" });
+      advanceQuestion();
+    }
+
+    function toggleVoice() { isListening ? stopListening() : startListening(); }
+
+    function startListening() {
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SR) { alert("Speech recognition not supported in this browser."); return; }
+      recognition = new SR();
+      recognition.lang = 'en-US'; recognition.interimResults = true; recognition.maxAlternatives = 3;
+      isListening = true;
+      const voiceBtn = document.getElementById('voiceBtn');
+      const chip = document.getElementById('transcriptChip');
+      const transcriptText = document.getElementById('transcriptText');
+      voiceBtn.classList.add('listening');
+      voiceBtn.innerHTML = '<span class="mic-icon">⏹</span> Stop';
+      chip.classList.add('active');
+      transcriptText.textContent = 'Listening...';
+      recognition.onresult = (e) => {
+        let interim = '', final = '';
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          if (e.results[i].isFinal) final += e.results[i][0].transcript;
+          else interim += e.results[i][0].transcript;
+        }
+        transcriptText.textContent = final || interim || 'Listening...';
+        if (final.trim()) matchVoiceToOption(final.trim().toLowerCase());
+      };
+      recognition.onerror = () => stopListening();
+      recognition.onend = () => stopListening();
+      recognition.start();
+    }
+
+    function stopListening() {
+      isListening = false;
+      if (recognition) { try { recognition.stop(); } catch(e){} }
+      const voiceBtn = document.getElementById('voiceBtn');
+      voiceBtn.classList.remove('listening');
+      voiceBtn.innerHTML = '<span class="mic-icon">🎤</span> Speak Answer';
+      document.getElementById('transcriptChip').classList.remove('active');
+    }
+
+    function matchVoiceToOption(spoken) {
+      const optionBtns = document.querySelectorAll('.option-btn:not(:disabled)');
+      if (!optionBtns.length) return;
+      const opts = questions[currentQ].options[emotionPath];
+      const keys = ['a','b','c','d'];
+      for (let i = 0; i < keys.length; i++) {
+        if (spoken.includes(keys[i]) || spoken.includes(String(i+1))) {
+          if (optionBtns[i]) { stopListening(); selectAnswer(opts[i], optionBtns[i], questions[currentQ].text[emotionPath]); return; }
+        }
+      }
+      let bestMatch = -1, bestScore = 0;
+      opts.forEach((opt, i) => {
+        const words = opt.toLowerCase().split(' ');
+        let score = words.filter(w => w.length > 3 && spoken.includes(w)).length;
+        if (score > bestScore) { bestScore = score; bestMatch = i; }
+      });
+      if (bestMatch >= 0 && bestScore > 0 && optionBtns[bestMatch]) {
+        stopListening();
+        selectAnswer(opts[bestMatch], optionBtns[bestMatch], questions[currentQ].text[emotionPath]);
+      }
+    }
+
+    function showSummary() {
+      document.getElementById('mainCard').style.display = 'none';
+      const answeredCount = answers.filter(a => a.answer !== 'Skipped').length;
+      summaryTextGlobal = buildSummary(answeredCount);
+
+      const sc = document.getElementById('summaryCard');
+      sc.classList.add('visible');
+      document.getElementById('summaryBody').textContent = summaryTextGlobal;
+
+      const wordCount = summaryTextGlobal.split(/\s+/).length;
+      const estimatedMs = Math.max(8000, Math.ceil((wordCount / 120) * 60 * 1000) + 2000);
+
+      speak(summaryTextGlobal, () => {
+        saveAnswersAndRedirect();
+      });
+
+      window._redirectFallback = setTimeout(() => {
+        saveAnswersAndRedirect();
+      }, estimatedMs + 3000);
+    }
+
+    function saveAnswersAndRedirect() {
+      if (window._saveDone) return;
+      window._saveDone = true;
+      if (window._redirectFallback) clearTimeout(window._redirectFallback);
+
+      // Build qa_pairs for the PDF
+      const qa_pairs = answers.map(a => ({
+        question: a.question,
+        answer:   a.answer
+      }));
+
+      fetch('/save_answers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          qa_pairs:          qa_pairs,
+          therapist_summary: summaryTextGlobal,
+          detected_emotion:  emotion
+        })
+      })
+      .catch(() => {}) // don't block redirect on network error
+      .finally(() => {
+        startRedirect(1500);
+      });
+    }
+
+    function buildSummary(answeredCount) {
+      const templates = {
+        positive: `What a wonderful session! Based on your responses, you're genuinely in a positive and energised state right now.\n\nYou've been feeling ${emotion}, and it's clear that the people and activities around you are contributing beautifully to that. With ${answeredCount} responses shared, your openness tells me you're someone who embraces joy actively rather than passively.\n\nRemember to nurture this energy — share it, protect it, and let it fuel your goals.\n\nYou're doing really well. Keep going. 🌟`,
+        negative: `Thank you for your honesty and courage in sharing today.\n\nBased on your responses, it's clear you're navigating a challenging period emotionally. Feeling ${emotion} is difficult — but the fact that you showed up, reflected, and engaged with these questions says something meaningful about your resilience.\n\nWith ${answeredCount} responses shared, I can see you have awareness about your situation. That self-awareness is your greatest tool right now.\n\nPlease remember: it's okay to ask for support. Speak to someone you trust, or seek professional guidance if the weight feels too heavy. You deserve care and kindness — especially from yourself. 💙`,
+        neutral:  `Thank you for your thoughtfulness and self-reflection today.\n\nYour ${emotion} state suggests you're holding steady — neither overwhelmed nor particularly energised. Based on your ${answeredCount} responses, you seem to be someone who processes things internally, methodically, and with calm.\n\nThis is a good foundation. The next step is identifying what would spark more engagement and meaning in your daily life.\n\nConsider intentional moments of connection, creativity, or challenge — small steps that move the needle from "okay" to "genuinely fulfilled." 🌿`
+      };
+      return templates[emotionPath];
+    }
+
+    function startRedirect(delayMs = 0) {
+      if (window._redirectStarted) return;
+      window._redirectStarted = true;
+      const DURATION = 3000;
+      const fill = document.getElementById('redirectFill');
+      const cd   = document.getElementById('redirectCountdown');
+      setTimeout(() => {
+        let elapsed = 0;
+        const TICK = 80;
+        const interval = setInterval(() => {
+          elapsed += TICK;
+          const pct = Math.min((elapsed / DURATION) * 100, 100);
+          fill.style.width = pct + '%';
+          cd.textContent = Math.max(Math.ceil((DURATION - elapsed) / 1000), 0) + 's';
+          if (elapsed >= DURATION) { clearInterval(interval); window.location.href = '/result'; }
+        }, TICK);
+      }, delayMs);
+    }
+  </script>
+</body>
+</html>
